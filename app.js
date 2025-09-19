@@ -4,8 +4,8 @@ const userRoute = require("./api/routes/users");
 const cors = require("cors");
 const app = express();
 
-// MongoDB connection
 app.use(cors());
+// MongoDB connection
 
 mongoose
   .connect(process.env.MONGO_URI)
