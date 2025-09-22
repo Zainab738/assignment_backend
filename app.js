@@ -3,6 +3,7 @@ const mongoose = require("mongoose");
 const userRoute = require("./api/routes/users");
 const cors = require("cors");
 const app = express();
+const postRoute = require("./api/routes/posts");
 
 app.use(cors());
 // MongoDB connection
@@ -14,4 +15,5 @@ mongoose
 
 app.use(express.json());
 app.use("/route", userRoute);
+app.use("/posts", postRoute);
 module.exports = app;
