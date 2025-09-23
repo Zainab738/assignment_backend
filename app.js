@@ -14,6 +14,6 @@ mongoose
   .catch((err) => console.error("MongoDB connection error:", err));
 
 app.use(express.json());
-app.use("/route", userRoute);
+app.use("/users", userRoute);
 app.use("/posts", postRoute);
 module.exports = app;

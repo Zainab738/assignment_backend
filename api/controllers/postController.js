@@ -4,28 +4,33 @@ const cloudinary = require("../../config/cloudinary");
 
 // CREATE Post
 exports.createPost = (req, res) => {
-  const imageUrl = req.file.path; // Cloudinary URL
-  const publicId = req.file.filename; // Cloudinary public_id
+  try {
+    const imageUrl = req.file ? req.file.path : null; // handle optional image
+    const publicId = req.file ? req.file.filename : null;
 
-  const post = new Post({
-    _id: new mongoose.Types.ObjectId(),
-    title: req.body.title,
-    content: req.body.content,
-    image: imageUrl,
-    publicId: publicId,
-  });
-
-  post
-    .save()
-    .then((savedPost) => {
-      res.status(201).json({
-        message: "Post created successfully",
-        post: savedPost,
-      });
-    })
-    .catch((err) => {
-      res.status(500).json({ error: err.message });
+    const post = new Post({
+      _id: new mongoose.Types.ObjectId(),
+      title: req.body.title,
+      content: req.body.content,
+      image: imageUrl,
+      publicId: publicId,
+      user: req.userData.userid, // <-- use user ID from token
     });
+
+    post
+      .save()
+      .then((savedPost) => {
+        res.status(201).json({
+          message: "Post created successfully",
+          post: savedPost,
+        });
+      })
+      .catch((err) => {
+        res.status(500).json({ error: err.message });
+      });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 };
 
 // DELETE Post
@@ -102,6 +107,36 @@ exports.updatePost = (req, res) => {
           });
         });
       }
+    })
+    .catch((err) => {
+      res.status(500).json({ error: err.message });
+    });
+};
+
+// Show all posts for logged-in user
+exports.showPost = (req, res) => {
+  Post.find({ user: req.userData.userid }) // fetch only this user's posts
+    .then((posts) => {
+      res.status(200).json({
+        message: "Posts fetched successfully",
+        posts: posts,
+      });
+    })
+    .catch((err) => {
+      res.status(500).json({ error: err.message });
+    });
+};
+
+// Show single post by ID
+exports.getPostById = (req, res) => {
+  const postId = req.params.id;
+
+  Post.findById(postId)
+    .then((post) => {
+      if (!post) {
+        return res.status(404).json({ message: "Post not found" });
+      }
+      res.status(200).json(post);
     })
     .catch((err) => {
       res.status(500).json({ error: err.message });
