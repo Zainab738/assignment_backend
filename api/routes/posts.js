@@ -19,6 +19,11 @@ router.patch(
   postController.updatePost
 );
 router.get("/all", checkAuth, postController.showPost);
+router.get("/feed", checkAuth, postController.feedPosts);
 router.get("/:id", checkAuth, postController.getPostById);
+
+router.post("/:id/like", checkAuth, postController.like);
+
+router.post("/:id/comment", checkAuth, postController.comment);
 
 module.exports = router;
