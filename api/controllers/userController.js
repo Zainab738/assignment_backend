@@ -11,12 +11,13 @@ exports.signup = (req, res, next) => {
     const user = new User({
       _id: new mongoose.Types.ObjectId(),
       email: req.body.email,
+      username: req.body.username,
       password: hash,
     });
 
     user
       .save()
-      .then((user) => res.status(201).json({ message: "user created", user }))
+      .then((user) => res.status(201).json({ message: "User created", user }))
       .catch((err) => res.status(500).json({ error: err }));
   });
 };
@@ -26,14 +27,17 @@ exports.login = (req, res, next) => {
   User.findOne({ email: req.body.email })
     .exec()
     .then((user) => {
-      if (!user) return res.status(401).json({ message: "auth failed" });
+      if (!user)
+        return res.status(401).json({ message: "Wrong username or password" });
 
       bcrypt.compare(req.body.password, user.password, (err, result) => {
         if (err || !result)
-          return res.status(401).json({ message: "auth failed" });
+          return res
+            .status(401)
+            .json({ message: "Wrong username or password" });
 
         const token = jwt.sign(
-          { email: user.email, userid: user._id },
+          { email: user.email, userid: user._id, username: user.username },
           process.env.JWT_KEY,
           { expiresIn: "1h" }
         );
@@ -49,11 +53,23 @@ exports.verifyToken = (req, res, next) => {
   res.status(200).json({ message: "token verified" });
 };
 
-//search users
+// search users
 exports.searchUsers = async (req, res) => {
-  const { q } = req.query;
-  const users = await User.find({ email: { $regex: q, $options: "i" } }); //nt cse sensitive
-  res.status(200).json({ users });
+  try {
+    const { q } = req.query;
+    if (!q || q.trim() === "") {
+      return res.status(400).json({ message: "Search query is required" });
+    }
+
+    const users = await User.find({
+      username: { $regex: q, $options: "i" },
+    }).select("username");
+
+    res.status(200).json({ users });
+  } catch (err) {
+    console.error("Error searching users:", err);
+    res.status(500).json({ error: err.message });
+  }
 };
 
 // Follow a user
@@ -116,8 +132,9 @@ exports.unfollowUser = async (req, res) => {
 exports.me = async (req, res) => {
   try {
     const user = await User.findById(req.userData.userid).select(
-      "following email"
+      "username email following"
     );
+
     res.status(200).json(user);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -153,5 +170,57 @@ exports.getFollowing = async (req, res) => {
   } catch (err) {
     console.error("Error fetching following:", err);
     res.status(500).json({ message: "Server error" });
+  }
+};
+// Update username
+exports.updateUsername = async (req, res) => {
+  try {
+    const userId = req.userData.userid;
+    const { username } = req.body;
+
+    if (!username || username.trim() === "") {
+      return res.status(400).json({ message: "Username is required" });
+    }
+
+    const updatedUser = await User.findByIdAndUpdate(
+      userId,
+      { username },
+      { new: true }
+    ).select("username email");
+
+    res.json({ message: "Username updated successfully", user: updatedUser });
+  } catch (err) {
+    console.error("Error updating username:", err);
+    res.status(500).json({ error: err.message });
+  }
+};
+
+// Update password
+exports.updatePassword = async (req, res) => {
+  try {
+    const userId = req.userData.userid;
+    const { oldPassword, newPassword } = req.body;
+
+    if (!oldPassword || !newPassword) {
+      return res
+        .status(400)
+        .json({ message: "Both old and new passwords are required" });
+    }
+
+    const user = await User.findById(userId);
+    if (!user) return res.status(404).json({ message: "User not found" });
+
+    const isMatch = await bcrypt.compare(oldPassword, user.password);
+    if (!isMatch)
+      return res.status(400).json({ message: "Old password is incorrect" });
+
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+    user.password = hashedPassword;
+    await user.save();
+
+    res.json({ message: "Password updated successfully" });
+  } catch (err) {
+    console.error("Error updating password:", err);
+    res.status(500).json({ error: err.message });
   }
 };
