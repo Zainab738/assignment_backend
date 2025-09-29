@@ -1,11 +1,11 @@
-// models/Post.js
 const mongoose = require("mongoose");
 
 const postSchema = new mongoose.Schema(
   {
     title: String,
     content: String,
-    image: String,
+    media: String,
+    mediaType: { type: String, enum: ["image", "video"], default: "image" },
     user: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
 
     likes: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],

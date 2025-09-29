@@ -6,14 +6,23 @@ const cloudinary = require("../../config/cloudinary");
 // CREATE Post
 exports.createPost = async (req, res) => {
   try {
-    const imageUrl = req.file ? req.file.path : null;
-    const publicId = req.file ? req.file.filename : null;
+    let mediaUrl = null;
+    let publicId = null;
+    let mediaType = "image";
+
+    if (req.file) {
+      mediaUrl = req.file.path;
+      publicId = req.file.filename;
+
+      if (req.file.mimetype.startsWith("video/")) mediaType = "video";
+    }
 
     const post = new Post({
       _id: new mongoose.Types.ObjectId(),
       title: req.body.title,
       content: req.body.content,
-      image: imageUrl,
+      media: mediaUrl,
+      mediaType: mediaType,
       publicId: publicId,
       user: req.userData.userid,
     });
@@ -33,9 +42,11 @@ exports.deletePost = async (req, res) => {
     const post = await Post.findById(req.params.id);
     if (!post) return res.status(404).json({ message: "Post not found" });
 
-    // Delete image from Cloudinary if exists
+    // Delete media from Cloudinary if exists
     if (post.publicId) {
-      await cloudinary.uploader.destroy(post.publicId);
+      await cloudinary.uploader.destroy(post.publicId, {
+        resource_type: post.mediaType,
+      });
     }
 
     await Post.deleteOne({ _id: req.params.id });
@@ -52,9 +63,17 @@ exports.updatePost = async (req, res) => {
     if (!post) return res.status(404).json({ message: "Post not found" });
 
     if (req.file) {
-      if (post.publicId) await cloudinary.uploader.destroy(post.publicId);
-      post.image = req.file.path;
+      if (post.publicId) {
+        await cloudinary.uploader.destroy(post.publicId, {
+          resource_type: post.mediaType,
+        });
+      }
+
+      post.media = req.file.path;
       post.publicId = req.file.filename;
+      post.mediaType = req.file.mimetype.startsWith("video/")
+        ? "video"
+        : "image";
     }
 
     post.title = req.body.title || post.title;
@@ -74,8 +93,8 @@ exports.showPost = async (req, res) => {
   try {
     const posts = await Post.find({ user: req.userData.userid })
       .sort({ createdAt: -1 })
-      .populate("user", "email")
-      .populate("comments.user", "email");
+      .populate("user", "username email")
+      .populate("comments.user", "username email");
     res.status(200).json({ message: "Posts fetched successfully", posts });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -105,8 +124,8 @@ exports.feedPosts = async (req, res) => {
 
     const posts = await Post.find({ user: { $in: followingIds } })
       .sort({ createdAt: -1 })
-      .populate("user", "email")
-      .populate("comments.user", "email");
+      .populate("user", "username email")
+      .populate("comments.user", "username email");
 
     res.status(200).json({ posts });
   } catch (err) {
@@ -123,10 +142,8 @@ exports.like = async (req, res) => {
     const userId = req.userData.userid;
 
     if (post.likes.includes(userId)) {
-      // Unlike
       post.likes = post.likes.filter((id) => id.toString() !== userId);
     } else {
-      // Like
       post.likes.push(userId);
     }
 
@@ -153,7 +170,7 @@ exports.comment = async (req, res) => {
 
     const populatedPost = await Post.findById(req.params.id).populate(
       "comments.user",
-      "email"
+      "username email"
     );
 
     res.json({ comments: populatedPost.comments });
